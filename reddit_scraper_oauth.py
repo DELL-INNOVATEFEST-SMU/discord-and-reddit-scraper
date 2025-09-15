@@ -71,7 +71,7 @@ async def main(subreddits):
                         "username": author,
                         "content": body,
                         "score": results[1],
-                        "source": f"reddit-{subreddit_name}",
+                        "source": "reddit",
                         "link": url,
                         "suggested_outreach": llm_reply
                     }).execute()

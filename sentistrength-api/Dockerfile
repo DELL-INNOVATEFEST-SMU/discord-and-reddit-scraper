@@ -13,9 +13,6 @@ COPY . /app
 # Install Python dependencies
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Download NLTK vader_lexicon (optional, only if you want VADER too)
-RUN python3 -m nltk.downloader vader_lexicon
-
 # Expose Flask port
 EXPOSE 5000
 

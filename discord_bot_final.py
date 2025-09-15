@@ -1,11 +1,15 @@
 import os
+from urllib import response
 import discord
 from discord.ext import commands
 from discord import app_commands
-
+import aiohttp
+from google.genai import types
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from sentistrength import PySentiStr
+from google import genai
+
 
 senti = PySentiStr()
 senti.setSentiStrengthPath("C:/wamp64/www/SentiStrength.jar")
@@ -22,6 +26,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # Initialize sentiment analyzer
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+client = genai.Client(api_key=GOOGLE_API_KEY)
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- Events ---
@@ -34,6 +41,17 @@ async def on_ready():
         print(f"✅ Synced {len(synced)} commands")
     except Exception as e:
         print(f"❌ Error syncing commands: {e}")
+
+async def get_llm_reply(text: str):
+    payload = f"Provide a short, uplifting message within 30 words in response to the following:\n\n{text}. Redirect them to this website that allows them to go through a survey to determine their emotions if it was a planet. https://www.mentallyhealthy.sg/assessment"
+    response = client.models.generate_content(
+    model="gemini-2.5-flash", contents=payload, config=types.GenerateContentConfig(
+        thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
+    )
+)
+    print(response.text)
+    return response.text
+
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -58,10 +76,12 @@ async def on_message(message: discord.Message):
                 "source": "discord",
                 "link": message.guild.name
             }).execute()
+            llm_reply = await get_llm_reply(message.content)
             await message.author.send(
                 f"💙 Hey {message.author.name}, I noticed your message seemed really tough. "
                 f"If you’re in Singapore, you can reach out to **SAMH** (https://www.samhealth.org.sg/) "
                 f"or call **SOS 1767** (24/7 support). You are not alone. 💙"
+                f"\n\nAlso, here's a little something from me: {llm_reply}"
             )
             print(f"DM sent to {message.author}")
         except discord.Forbidden:

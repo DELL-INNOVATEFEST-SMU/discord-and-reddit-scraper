@@ -1,9 +1,6 @@
 import os
-from urllib import response
 import discord
 from discord.ext import commands
-from discord import app_commands
-import aiohttp
 from google.genai import types
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -49,7 +46,7 @@ async def get_llm_reply(text: str):
         thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
     )
 )
-    print(response.text)
+    
     return response.text
 
 
@@ -69,14 +66,17 @@ async def on_message(message: discord.Message):
     # If message is strongly negative, DM user
     if results[1] < -2 :
         try:
+            llm_reply = await get_llm_reply(message.content)
             supabase.table("messages").insert({
                 "username": str(message.author),
                 "content": message.content,
                 "score": results[1],
                 "source": "discord",
-                "link": message.guild.name
+                "link": message.guild.name if message.guild else "DM",
+                "suggested_outreach": llm_reply
             }).execute()
-            llm_reply = await get_llm_reply(message.content)
+            
+
             await message.author.send(
                 f"💙 Hey {message.author.name}, I noticed your message seemed really tough. "
                 f"If you’re in Singapore, you can reach out to **SAMH** (https://www.samhealth.org.sg/) "

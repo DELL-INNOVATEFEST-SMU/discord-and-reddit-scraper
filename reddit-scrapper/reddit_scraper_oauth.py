@@ -5,6 +5,24 @@ from sentistrength import PySentiStr
 import praw
 from google import genai
 from google.genai import types
+import re
+def remove_emojis(text):
+    # Emoji unicode ranges based on common patterns
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002700-\U000027BF"  # Dingbats
+        "\U000024C2-\U0001F251"
+        "]+",
+        flags=re.UNICODE
+    )
+    return emoji_pattern.sub(r'', text)
+
+# Usage:
+
 #hi kevin
 # Load environment variables
 load_dotenv()
@@ -55,7 +73,7 @@ async def main(subreddits):
         # Fetch latest 10 posts
         for post in subreddit.new(limit=10):
             title = post.title
-            body = post.selftext or ""
+            body = remove_emojis(post.selftext) or ""
             author = str(post.author) if post.author else "[deleted]"
             url = post.url
 

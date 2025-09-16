@@ -30,8 +30,8 @@ reddit = praw.Reddit(
 
 # Initialize SentiStrength
 senti = PySentiStr()
-senti.setSentiStrengthPath("C:/wamp64/www/SentiStrength.jar")
-senti.setSentiStrengthLanguageFolderPath("C:/wamp64/www/SentiStrengthDataEnglishOctober2019")
+senti.setSentiStrengthPath("./SentiStrength.jar")
+senti.setSentiStrengthLanguageFolderPath("./SentiStrengthDataEnglishOctober2019")
 
 # --- User input for multiple subreddits ---
 subreddits = input("Enter subreddits (comma-separated): ").split(",")

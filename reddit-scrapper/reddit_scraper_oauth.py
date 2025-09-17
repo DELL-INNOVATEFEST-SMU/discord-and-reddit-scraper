@@ -115,9 +115,9 @@ async def main(subreddits):
             # Combine title + body for sentiment analysis
             text = title + " " + body
             # results = senti.getSentiment(text.replace('\n', ''), score='trinary')
-            # results = results[0]
+            # results = results[0] ####uncomment this for trinary sentiment analysis
 
-            results = senti.getSentiment(text.replace('\n', ''))
+            results = senti.getSentiment(text.replace('\n', '')) ####comment this for normal sentiment analysis
             print(results)
             # If negative sentiment is strong, save to Supabase
             if results[1] < -2:  # adjustable threshold

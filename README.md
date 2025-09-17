@@ -9,3 +9,5 @@ curl -X POST http://localhost:5000/analyze \
 The input subreddits must be in csv format e.g. : SGExams, NationalServiceSG, depression
 
 3. may need environment keys?
+
+4. Because my pc is weird, you need to uncomment the results line and comment the other results line, marked in both files (just search uncomment)

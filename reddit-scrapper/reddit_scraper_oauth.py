@@ -1,4 +1,7 @@
 import os
+from fastapi import FastAPI, Query
+from pydantic import BaseModel
+from typing import Dict
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from sentistrength import PySentiStr
@@ -100,10 +103,12 @@ async def get_llm_reply(text: str):
 
 async def main(subreddits):
     for subreddit_name in subreddits.keys():
+    for subreddit_name in subreddits.keys():
         subreddit = reddit.subreddit(subreddit_name)
         print(f"📡 Scraping r/{subreddit_name}...")
 
         # Fetch latest 10 posts
+        for post in subreddit.new(limit=subreddits[subreddit_name]):
         for post in subreddit.new(limit=subreddits[subreddit_name]):
             title = post.title
             body = remove_emojis(post.selftext) or ""

@@ -58,6 +58,8 @@ async def on_message(message: discord.Message):
     
     # Save ALL messages to Supabase
     results = senti.getSentiment(message.content)
+    # results = senti.getSentiment(text.replace('\n', ''), score='trinary')
+    # results = results[0]
 
     print(results)  
 

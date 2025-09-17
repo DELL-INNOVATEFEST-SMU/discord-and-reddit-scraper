@@ -1,4 +1,7 @@
 import os
+from fastapi import FastAPI, Query
+from pydantic import BaseModel
+from typing import Dict
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from sentistrength import PySentiStr
@@ -52,8 +55,23 @@ senti.setSentiStrengthPath("./SentiStrength.jar")
 senti.setSentiStrengthLanguageFolderPath("./SentiStrengthDataEnglishOctober2019")
 
 # --- User input for multiple subreddits ---
-subreddits = input("Enter subreddits (comma-separated): ").split(",")
-subreddits = [s.strip() for s in subreddits]  # clean whitespace
+# subreddits = input("Enter subreddits (comma-separated): ").split(",")
+# subreddits = [s.strip() for s in subreddits]  # clean whitespace
+
+app = FastAPI()
+
+class ScrapeRequest(BaseModel):
+    subreddits: Dict[str, int]
+
+@app.get("/")
+async def read_root():
+    return {"message": "Hello World"}
+
+@app.post("/scrape_reddit")
+async def scrape_reddit(request: ScrapeRequest):
+    
+    await main(request.subreddits)
+    return {"status": "Scraping completed"}
 
 async def get_llm_reply(text: str):
     payload = f"Provide a short, uplifting message within 30 words in response to the following:\n\n{text}. Redirect them to this website that allows them to go through a survey to determine their emotions if it was a planet. https://www.mentallyhealthy.sg/assessment"
@@ -66,12 +84,12 @@ async def get_llm_reply(text: str):
     return response.text
 
 async def main(subreddits):
-    for subreddit_name in subreddits:
+    for subreddit_name in subreddits.keys():
         subreddit = reddit.subreddit(subreddit_name)
         print(f"📡 Scraping r/{subreddit_name}...")
 
         # Fetch latest 10 posts
-        for post in subreddit.new(limit=10):
+        for post in subreddit.new(limit=subreddits[subreddit_name]):
             title = post.title
             body = remove_emojis(post.selftext) or ""
             author = str(post.author) if post.author else "[deleted]"
@@ -79,9 +97,11 @@ async def main(subreddits):
 
             # Combine title + body for sentiment analysis
             text = title + " " + body
-            results = senti.getSentiment(text.replace('\n', ''), score='trinary')
-            results = results[0]
-
+            # results = senti.getSentiment(text.replace('\n', ''), score='trinary')
+            # results = results[0]
+            results = senti.getSentiment(text.replace('\n', ''))
+            print(results)
+            
             # If negative sentiment is strong, save to Supabase
             if results[1] < -2:  # adjustable threshold
                 try:
@@ -98,6 +118,4 @@ async def main(subreddits):
                 except Exception as e:
                     print(f"❌ Could not save post {title}: {e}")
 
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main(subreddits))
+    print("🚀 Scraping completed.")

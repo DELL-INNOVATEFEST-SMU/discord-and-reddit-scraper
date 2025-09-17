@@ -1,9 +1,9 @@
 import os
 import uvicorn
-from supabase import create_client, Client
+from supabase import create_client, AsyncClient
 from dotenv import load_dotenv
 from sentistrength import PySentiStr
-import praw
+import asyncpraw
 from google import genai
 from google.genai import types
 import re
@@ -11,62 +11,58 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict
+import asyncio
+import logging
 
+# Set up basic logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 class ScrapeRequest(BaseModel):
     subreddits: Dict[str, int]
 
 app = FastAPI()
-# origins = [
-#     "http://localhost:3000",
-#     # add other allowed origins if needed, or use ["*"] for all (not recommended in production)
-# ]
 
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # allow all HTTP methods
-    allow_headers=["*"],  # allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-
-def remove_emojis(text):
-    # Emoji unicode ranges based on common patterns
-    emoji_pattern = re.compile(
-        "["
-        "\U0001F600-\U0001F64F"  # Emoticons
-        "\U0001F300-\U0001F5FF"  # Symbols & pictographs
-        "\U0001F680-\U0001F6FF"  # Transport & map symbols
-        "\U0001F1E0-\U0001F1FF"  # Flags
-        "\U00002700-\U000027BF"  # Dingbats
-        "\U000024C2-\U0001F251"
-        "\U0001F900-\U0001F9FF"  
-        "\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
-        "]+",
-        flags=re.UNICODE
-    )
-    return emoji_pattern.sub(r'', text)
-
-# Usage:
+# Pre-compile regex once
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # Emoticons
+    "\U0001F300-\U0001F5FF"  # Symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # Transport & map symbols
+    "\U0001F1E0-\U0001F1FF"  # Flags
+    "\U00002700-\U000027BF"  # Dingbats
+    "\U000024C2-\U0001F251"
+    "\U0001F900-\U0001F9FF"
+    "\U0001FA70-\U0001FAFF"
+    "]+",
+    flags=re.UNICODE,
+)
+def remove_emojis(text: str) -> str:
+    return EMOJI_PATTERN.sub("", text)
 
 # Load environment variables
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
 REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
 REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
 REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-client = genai.Client(api_key=GOOGLE_API_KEY)
 
-# Supabase client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# Reddit client
-reddit = praw.Reddit(
+# Initialize clients asynchronously
+genai_client = genai.Client(api_key=GOOGLE_API_KEY)
+supabase: AsyncClient = AsyncClient(
+    supabase_url=SUPABASE_URL,
+    supabase_key=SUPABASE_KEY
+)
+reddit = asyncpraw.Reddit(
     client_id=REDDIT_CLIENT_ID,
     client_secret=REDDIT_CLIENT_SECRET,
     user_agent=REDDIT_USER_AGENT,
@@ -77,9 +73,99 @@ senti = PySentiStr()
 senti.setSentiStrengthPath("./SentiStrength.jar")
 senti.setSentiStrengthLanguageFolderPath("./SentiStrengthDataEnglishOctober2019")
 
-# --- User input for multiple subreddits ---
-# subreddits = input("Enter subreddits (comma-separated): ").split(",")
-# subreddits = [s.strip() for s in subreddits]  # clean whitespace
+# Concurrency controls
+LLM_CONCURRENCY = 5
+llm_semaphore = asyncio.Semaphore(LLM_CONCURRENCY)
+
+async def get_llm_reply(text: str):
+    payload = (
+        f"Provide a short, uplifting message within 30 words in response to the following:\n\n{text}. "
+        "Redirect them to this website that allows them to go through a survey to determine their emotions if it was a planet. "
+        "https://www.mentallyhealthy.sg/assessment"
+    )
+    response = genai_client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=payload,
+        config=types.GenerateContentConfig(
+            thinking_config=types.ThinkingConfig(thinking_budget=0)
+        ),
+    )
+    return response.text
+
+async def get_llm_reply_safe(text: str):
+    async with llm_semaphore:
+        return await get_llm_reply(text)
+
+async def analyze_and_save(subreddit_name: str, posts: list, buffer: list, batch_size: int = 50):
+    """
+    Run sentiment analysis in batch, filter negatives, generate LLM replies, and save.
+    """
+    if not posts:
+        return
+
+    texts = [p["title"] + " " + p["body"] for p in posts]
+
+    # Run one JVM call for ALL posts in this subreddit
+    results = await asyncio.to_thread(senti.getSentiment, texts, score="trinary")
+
+    negative_tasks = []
+    for post, sentiment in zip(posts, results):
+        score = sentiment[1]
+        if score < -2:
+            negative_tasks.append((post, score))
+
+    logging.info(f"r/{subreddit_name}: {len(negative_tasks)} negative posts out of {len(posts)} scraped.")
+
+    for post, score in negative_tasks:
+        llm_reply = await get_llm_reply_safe(
+            post["body"].split("\n")[0] if post["body"] else post["title"]
+        )
+        buffer.append({
+            "username": post["author"],
+            "content": post["body"],
+            "score": score,
+            "source": "reddit",
+            "link": post["url"],
+            "suggested_outreach": llm_reply,
+        })
+
+        # Batch flush to Supabase
+        if len(buffer) >= batch_size:
+            await supabase.table("messages").insert(buffer).execute()
+            logging.info(f"💾 Inserted {len(buffer)} rows into Supabase (batch flush).")
+            buffer.clear()
+
+async def main(subreddits: dict[str, int]):
+    """
+    Main entrypoint for scraping and batch sentiment analysis.
+    """
+    buffer = []
+
+    for subreddit_name, limit in subreddits.items():
+        logging.info(f"📡 Scraping r/{subreddit_name} (limit={limit})...")
+        posts = []
+        try:
+            subreddit = await reddit.subreddit(subreddit_name)
+            async for post in subreddit.new(limit=limit):
+                posts.append({
+                    "title": post.title,
+                    "body": remove_emojis(post.selftext) or "",
+                    "author": str(post.author) if post.author else "[deleted]",
+                    "url": post.url,
+                })
+
+            # Batch analyze and save after collecting posts
+            await analyze_and_save(subreddit_name, posts, buffer)
+
+        except Exception as e:
+            logging.error(f"❌ Error fetching subreddit {subreddit_name}: {e}")
+
+    # Final flush if buffer has leftovers
+    if buffer:
+        await supabase.table("messages").insert(buffer).execute()
+        logging.info(f"💾 Inserted final {len(buffer)} rows into Supabase.")
+
+    logging.info("✅ Scraping completed.")
 
 @app.get("/")
 async def root():
@@ -90,52 +176,5 @@ async def scrape_subreddits(request: ScrapeRequest):
     await main(request.subreddits)
     return {"status": "Scraping completed"}
 
-async def get_llm_reply(text: str):
-    payload = f"Provide a short, uplifting message within 30 words in response to the following:\n\n{text}. Redirect them to this website that allows them to go through a survey to determine their emotions if it was a planet. https://www.mentallyhealthy.sg/assessment"
-    response = client.models.generate_content(
-    model="gemini-2.5-flash", contents=payload, config=types.GenerateContentConfig(
-        thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
-    )
-)
-    
-    return response.text
-
-async def main(subreddits):
-    for subreddit_name in subreddits.keys():
-        subreddit = reddit.subreddit(subreddit_name)
-        print(f"📡 Scraping r/{subreddit_name}...")
-
-        # Fetch latest 10 posts
-        
-        for post in subreddit.new(limit=subreddits[subreddit_name]):
-            title = post.title
-            body = remove_emojis(post.selftext) or ""
-            author = str(post.author) if post.author else "[deleted]"
-            url = post.url
-
-            # Combine title + body for sentiment analysis
-            text = title + " " + body
-            results = senti.getSentiment(text.replace('\n', ''), score='trinary')
-            results = results[0] ####uncomment this for trinary sentiment analysis
-
-            # results = senti.getSentiment(text.replace('\n', '')) ####comment this for normal sentiment analysis
-            # print(results)
-            
-            # If negative sentiment is strong, save to Supabase
-            if results[1] < -2:  # adjustable threshold
-                try:
-                    llm_reply = await get_llm_reply(body.split('\n')[0] if body else title)
-                    supabase.table("messages").insert({
-                        "username": author,
-                        "content": body,
-                        "score": results[1],
-                        "source": "reddit",
-                        "link": url,
-                        "suggested_outreach": llm_reply
-                    }).execute()
-                    print(f"✅ Saved negative post from r/{subreddit_name}: {title}")
-                except Exception as e:
-                    print(f"❌ Could not save post {title}: {e}")
-            
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5005)

@@ -1,20 +1,26 @@
-# Use JDK 17 base image
-FROM openjdk:17-slim
+# Use an official lightweight Python image
+FROM python:3.13-slim
 
-# Install Python
-RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*
+# Install Java for SentiStrength
+RUN apt-get update && apt-get install -y \
+    default-jre \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set work directory
+# Set working directory
 WORKDIR /app
 
-# Copy project files
-COPY . /app
+# Copy requirements first (to leverage Docker cache)
+COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip3 install --no-cache-dir -r requirements.txt
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose Flask port
-EXPOSE 5000
+# Copy app code into container
+COPY . .
 
-# Start Flask API
-CMD ["python3", "app.py"]
+# Expose FastAPI port
+EXPOSE 5005
+
+# Run with uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5005"]

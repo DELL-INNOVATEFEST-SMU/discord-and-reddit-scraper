@@ -57,9 +57,9 @@ async def on_message(message: discord.Message):
     # Run sentiment analysis
     
     # Save ALL messages to Supabase
-    results = senti.getSentiment(message.content) ###comment this for trinary sentiment analysis
-    # results = senti.getSentiment(text.replace('\n', ''), score='trinary') ###uncomment this for trinary sentiment analysis
-    # results = results[0]
+    # results = senti.getSentiment(message.content) ###comment this for trinary sentiment analysis
+    results = senti.getSentiment(text.replace('\n', ''), score='trinary') ###uncomment this for trinary sentiment analysis
+    results = results[0]
 
     print(results)  
 

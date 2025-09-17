@@ -1,4 +1,5 @@
 import os
+import uvicorn
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from sentistrength import PySentiStr
@@ -11,18 +12,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict
 
+
 class ScrapeRequest(BaseModel):
     subreddits: Dict[str, int]
 
 app = FastAPI()
-origins = [
-    "http://localhost:3000",
-    # add other allowed origins if needed, or use ["*"] for all (not recommended in production)
-]
+# origins = [
+#     "http://localhost:3000",
+#     # add other allowed origins if needed, or use ["*"] for all (not recommended in production)
+# ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    # allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],  # allow all HTTP methods
     allow_headers=["*"],  # allow all headers
@@ -99,7 +101,6 @@ async def get_llm_reply(text: str):
     return response.text
 
 async def main(subreddits):
-    
     for subreddit_name in subreddits.keys():
         subreddit = reddit.subreddit(subreddit_name)
         print(f"📡 Scraping r/{subreddit_name}...")
@@ -114,11 +115,12 @@ async def main(subreddits):
 
             # Combine title + body for sentiment analysis
             text = title + " " + body
-            # results = senti.getSentiment(text.replace('\n', ''), score='trinary')
-            # results = results[0] ####uncomment this for trinary sentiment analysis
+            results = senti.getSentiment(text.replace('\n', ''), score='trinary')
+            results = results[0] ####uncomment this for trinary sentiment analysis
 
-            results = senti.getSentiment(text.replace('\n', '')) ####comment this for normal sentiment analysis
-            print(results)
+            # results = senti.getSentiment(text.replace('\n', '')) ####comment this for normal sentiment analysis
+            # print(results)
+            
             # If negative sentiment is strong, save to Supabase
             if results[1] < -2:  # adjustable threshold
                 try:
@@ -135,3 +137,5 @@ async def main(subreddits):
                 except Exception as e:
                     print(f"❌ Could not save post {title}: {e}")
             
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=5005)

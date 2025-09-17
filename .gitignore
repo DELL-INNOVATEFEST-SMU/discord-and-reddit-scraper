@@ -21,6 +21,9 @@ Thumbs.db
 # VSCode
 .vscode/
 
+# Codacy
+.codacy
+
 # Build output
 dist/
 build/

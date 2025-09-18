@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 dotenv.load_dotenv()
 
+
+
 # Initialize GenAI client with API key from env
 client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 

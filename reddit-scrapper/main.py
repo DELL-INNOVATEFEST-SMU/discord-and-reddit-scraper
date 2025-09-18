@@ -17,6 +17,8 @@ import logging
 # Set up basic logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+reddit_base_url = "http://www.reddit.com"
+
 class ScrapeRequest(BaseModel):
     subreddits: Dict[str, int]
 
@@ -125,7 +127,7 @@ async def analyze_and_save(subreddit_name: str, posts: list, buffer: list, batch
             "content": post["body"],
             "score": score,
             "source": "reddit",
-            "link": post["url"],
+            "link": reddit_base_url + post["permalink"],
             "suggested_outreach": llm_reply,
         })
 

@@ -40,7 +40,7 @@ async def on_ready():
         print(f"❌ Error syncing commands: {e}")
 
 async def get_llm_reply(text: str):
-    payload = f"Provide a short, uplifting message within 80 words in response to the following:\n\n{text}. Redirect them to this website that allows them to go through a survey to determine their emotions if it was a planet. https://website-smu.apps.innovate.sg-cna.com/assessment"
+    payload = f"Provide a short, uplifting message within 80 words in response to the following:\n\n{text}. Redirect them to this website that allows them to go through a survey to determine their emotions if it was a planet. https://website-smu.apps.innovate.sg-cna.com/cosmic-compass"
     response = client.models.generate_content(
         model="gemini-2.5-flash", contents=payload, config=types.GenerateContentConfig(
             thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking

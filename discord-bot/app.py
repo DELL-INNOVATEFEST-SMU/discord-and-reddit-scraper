@@ -40,7 +40,7 @@ async def on_ready():
         print(f"❌ Error syncing commands: {e}")
 
 async def get_llm_reply(text: str):
-    payload = f"Provide a short, uplifting message within 30 words in response to the following:\n\n{text}. Redirect them to this website that allows them to go through a survey to determine their emotions if it was a planet. https://www.mentallyhealthy.sg/assessment"
+    payload = f"Provide a short, uplifting message within 80 words in response to the following:\n\n{text}. Redirect them to this website that allows them to go through a survey to determine their emotions if it was a planet. https://website-smu.apps.innovate.sg-cna.com/assessment"
     response = client.models.generate_content(
         model="gemini-2.5-flash", contents=payload, config=types.GenerateContentConfig(
             thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
@@ -80,7 +80,6 @@ async def on_message(message: discord.Message):
             await message.author.send(
                 f"💙 Hey {message.author.name}, I noticed your message seemed really tough. "
                 f"If you’re in Singapore, you can reach out to **SAMH** (https://www.samhealth.org.sg/) "
-                f"or call **SOS 1767** (24/7 support). You are not alone. 💙"
                 f"\n\nAlso, here's a little something from me: {llm_reply}"
             )
             print(f"DM sent to {message.author}")

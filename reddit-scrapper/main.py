@@ -81,9 +81,7 @@ llm_semaphore = asyncio.Semaphore(LLM_CONCURRENCY)
 
 async def get_llm_reply(text: str):
     payload = (
-        f"Provide a short, uplifting message within 30 words in response to the following:\n\n{text}. "
-        "Redirect them to this website that allows them to go through a survey to determine their emotions if it was a planet. "
-        "https://www.mentallyhealthy.sg/assessment"
+        f"Provide a short, uplifting message within 130 words in response to the following:\n\n{text}. Redirect them to this website that allows them to go through a survey to determine their emotions if it was a planet. https://website-smu.apps.innovate.sg-cna.com/assessment"
     )
     response = genai_client.models.generate_content(
         model="gemini-2.5-flash",

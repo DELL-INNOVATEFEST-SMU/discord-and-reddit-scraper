@@ -80,7 +80,8 @@ async def on_message(message: discord.Message):
             await message.author.send(
                 f"💙 Hey {message.author.name}, I noticed your message seemed really tough. "
                 f"If you’re in Singapore, you can reach out to **SAMH** (https://www.samhealth.org.sg/) "
-                f"\n\nAlso, here's a little something from me: {llm_reply}"
+                f"Help is always available for you. Remember, you're not alone! "
+                f"\n\nAlso, here's a little note from me: {llm_reply}"
             )
             print(f"DM sent to {message.author}")
         except discord.Forbidden:
@@ -104,10 +105,13 @@ async def dailycheckin(interaction: discord.Interaction):
 async def resources(interaction: discord.Interaction):
     await interaction.response.send_message(
         "📖 Here are some mental health resources in Singapore:\n"
+        "SAMH Space Station Planet Survey: https://website-smu.apps.innovate.sg-cna.com/planet-quiz\n"
         "- SAMH: https://www.samh.org.sg/\n"
         "- SOS Hotline (24/7): 1767\n"
-        "- mindline.sg: https://mindline.sg/\n"
-        "- IMH Helpline: 6389 2222",
+        "- COMIT Services: https://supportgowhere.life.gov.sg/services/SVC-CITC/community-intervention-team-comit\n"
+        "- Limitless Mental Health: https://www.limitless.sg/\n"
+        "- IMH Helpline: 6389 2222"
+        "\n\nRemember, seeking help is a sign of strength! 💙",
         ephemeral=True
     )
 

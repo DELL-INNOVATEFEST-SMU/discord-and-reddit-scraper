@@ -19,6 +19,16 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 reddit_base_url = "http://www.reddit.com"
 
+# Load environment variables
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
+REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
+REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+LAUNCHPAD_URL = os.getenv("LAUNCHPAD_URL")
 class ScrapeRequest(BaseModel):
     subreddits: Dict[str, int]
 
@@ -26,9 +36,12 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=[LAUNCHPAD_URL],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
 
 # Pre-compile regex once
@@ -48,15 +61,7 @@ EMOJI_PATTERN = re.compile(
 def remove_emojis(text: str) -> str:
     return EMOJI_PATTERN.sub("", text)
 
-# Load environment variables
-load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
-REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
-REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Initialize clients asynchronously
 genai_client = genai.Client(api_key=GOOGLE_API_KEY)

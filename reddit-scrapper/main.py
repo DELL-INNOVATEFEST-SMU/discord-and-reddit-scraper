@@ -65,8 +65,6 @@ EMOJI_PATTERN = re.compile(
 def remove_emojis(text: str) -> str:
     return EMOJI_PATTERN.sub("", text)
 
-
-
 # Initialize clients asynchronously
 genai_client = genai.Client(api_key=GOOGLE_API_KEY)
 supabase: AsyncClient = AsyncClient(
@@ -160,7 +158,7 @@ async def main(subreddits: dict[str, int]):
                     "title": post.title,
                     "body": remove_emojis(post.selftext) or "",
                     "author": str(post.author) if post.author else "[deleted]",
-                    "url": post.url,
+                    "permalink": post.permalink,
                 })
 
             # Batch analyze and save after collecting posts

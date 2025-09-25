@@ -72,7 +72,7 @@ async def on_message(message: discord.Message):
                 "content": message.content,
                 "score": results[1],
                 "source": "discord",
-                "link": message.guild.name + "sep" + str(message.id) if message.guild else "DM" + "sep" + str(message.id),
+                "link": message.guild.name + ";sep" + str(message.id) if message.guild else "DM" + ";sep" + str(message.id),
                 "suggested_outreach": llm_reply
             }).execute()
             

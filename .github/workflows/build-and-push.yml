@@ -185,6 +185,11 @@ jobs:
         run: |
           NS="${{ env.OPENSHIFT_NAMESPACE }}"
           oc -n "$NS" apply -f app.yaml
+    
+      - name: Force a rollout (even if spec unchanged)
+        if: ${{ steps.check.outputs.ok == 'true' }}
+        run: |
+          oc -n "${{ env.OPENSHIFT_NAMESPACE }}" rollout restart deployment/discord-bot
 
       - name: Wait for rollout
         if: ${{ steps.check.outputs.ok == 'true' }}

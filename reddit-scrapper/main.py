@@ -146,12 +146,17 @@ async def analyze_and_save(subreddit_name: str, posts: list, buffer: list, batch
             "source": "reddit",
             "link": reddit_base_url + post["permalink"],
             "suggested_outreach": llm_reply,
+            
         })
 
     # Batch flush to Supabase
     if len(buffer) >= batch_size:
         try:
-            await supabase.table("messages").insert(buffer).execute()
+            await supabase.table("messages").upsert(
+    buffer,
+    on_conflict=["link"],     # must match your unique column(s)
+    ignore_duplicates=True    # optional: skip duplicates
+).execute()
             logging.info(f"💾 Inserted {len(buffer)} rows into Supabase (batch flush).")
             buffer.clear()
         except Exception as e:

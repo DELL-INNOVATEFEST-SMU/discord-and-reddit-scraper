@@ -12,6 +12,10 @@ env:
   REGISTRY: ihl-harbor.apps.innovate.sg-cna.com
   HARBOR_PROJECT: ${{ secrets.HARBOR_PROJECT }}  # your team/project slug in Harbor
   IMAGE_TAG: ${{ github.sha }}                   # immutable tag per commit
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+  GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
 
 jobs:
   build-and-push:

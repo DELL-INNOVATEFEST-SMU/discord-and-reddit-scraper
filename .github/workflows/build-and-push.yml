@@ -12,10 +12,6 @@ env:
   REGISTRY: ihl-harbor.apps.innovate.sg-cna.com
   HARBOR_PROJECT: ${{ secrets.HARBOR_PROJECT }}  # your team/project slug in Harbor
   IMAGE_TAG: ${{ github.sha }}                   # immutable tag per commit
-  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-  DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-  GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
 
 jobs:
   build-and-push:
@@ -33,8 +29,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.HARBOR_USERNAME }}      # Keycloak username
-          password: ${{ secrets.HARBOR_CLI_SECRET }}    # Harbor profile -> "CLI secret"
+          username: ${{ secrets.HARBOR_USERNAME }}    # Keycloak username
+          password: ${{ secrets.HARBOR_CLI_SECRET }}  # Harbor profile -> "CLI secret"
 
       - name: Build and Push (Dockerfile in /)
         uses: docker/build-push-action@v6
@@ -113,7 +109,32 @@ jobs:
           oc -n "$NS" secrets link default "$SECRET" --for=pull || true
           oc -n "$NS" secrets link builder "$SECRET" --for=pull || true
 
-      - name: Render manifests (Deployment, Service, Route) with small resources and no surge
+      - name: Create/Update app env Secret
+        if: ${{ steps.check.outputs.ok == 'true' }}
+        run: |
+          set -euo pipefail
+          NS="${{ env.OPENSHIFT_NAMESPACE }}"
+          SECRET=discord-bot-env
+
+          # Delete old secret if exists (idempotent recreate)
+          oc -n "$NS" get secret "$SECRET" >/dev/null 2>&1 && oc -n "$NS" delete secret "$SECRET"
+
+          # Create from GitHub Actions secrets (add/remove keys as your app needs)
+          oc -n "$NS" create secret generic "$SECRET" \
+            --from-literal=SUPABASE_URL='${{ secrets.SUPABASE_URL }}' \
+            --from-literal=SUPABASE_SERVICE_ROLE_KEY='${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}' \
+            --from-literal=DISCORD_TOKEN='${{ secrets.DISCORD_TOKEN }}' \
+            --from-literal=GOOGLE_API_KEY='${{ secrets.GOOGLE_API_KEY }}' \
+            ${REDDIT_BLOCK:-}
+
+        env:
+          # Optional block for Reddit creds; leave unset if not needed.
+          REDDIT_BLOCK: >-
+            --from-literal=REDDIT_CLIENT_ID='${{ secrets.REDDIT_CLIENT_ID }}'
+            --from-literal=REDDIT_CLIENT_SECRET='${{ secrets.REDDIT_CLIENT_SECRET }}'
+            --from-literal=REDDIT_USER_AGENT='${{ secrets.REDDIT_USER_AGENT }}'
+
+      - name: Render manifests (Deployment only; no HTTP ports/probes)
         if: ${{ steps.check.outputs.ok == 'true' }}
         id: manifests
         run: |
@@ -143,44 +164,17 @@ jobs:
                   - name: discord-bot
                     image: REPLACE_IMAGE
                     imagePullPolicy: IfNotPresent
-                    ports: [ { containerPort: 8080 } ]
+                    # No HTTP ports or probes (Discord bot runs as a worker)
+                    envFrom:
+                      - secretRef:
+                          name: discord-bot-env
                     resources:
                       requests:
                         cpu: "50m"
-                        memory: "64Mi"
+                        memory: "128Mi"
                       limits:
-                        cpu: "150m"
-                        memory: "256Mi"
-                    readinessProbe:
-                      httpGet: { path: "/", port: 8080 }
-                      initialDelaySeconds: 3
-                      periodSeconds: 10
-                    livenessProbe:
-                      httpGet: { path: "/", port: 8080 }
-                      initialDelaySeconds: 10
-                      periodSeconds: 20
-          ---
-          apiVersion: v1
-          kind: Service
-          metadata:
-            name: discord-bot
-            labels: { app: discord-bot }
-          spec:
-            selector: { app: discord-bot }
-            ports:
-              - name: http
-                port: 8080
-                targetPort: 8080
-          ---
-          apiVersion: route.openshift.io/v1
-          kind: Route
-          metadata:
-            name: discord-bot
-            labels: { app: discord-bot }
-          spec:
-            to: { kind: Service, name: discord-bot }
-            port: { targetPort: http }
-            tls: { termination: edge }
+                        cpu: "250m"
+                        memory: "512Mi"
           YAML
 
           sed -i "s|REPLACE_IMAGE|$IMAGE|g" app.yaml
@@ -195,15 +189,19 @@ jobs:
       - name: Wait for rollout
         if: ${{ steps.check.outputs.ok == 'true' }}
         run: |
-          oc -n "${{ env.OPENSHIFT_NAMESPACE }}" rollout status deployment/discord-bot --timeout=18080s
+          set -e
+          oc -n "${{ env.OPENSHIFT_NAMESPACE }}" rollout status deployment/discord-bot --timeout=600s
 
-      - name: Show Route URL
+      - name: Show Pod status (helpful if rollout failed)
         if: ${{ steps.check.outputs.ok == 'true' }}
         run: |
+          NS="${{ env.OPENSHIFT_NAMESPACE }}"
           echo "---------------------------------------------------------------"
           echo "Image deployed: ${{ steps.manifests.outputs.image }}"
-          URL=$(oc -n "${{ env.OPENSHIFT_NAMESPACE }}" get route/discord-bot -o jsonpath='https://{.spec.host}')
-          echo "App URL: $URL"
+          oc -n "$NS" get deploy/discord-bot
+          oc -n "$NS" get pods -l app=discord-bot -o wide
+          echo "Recent events:"
+          oc -n "$NS" get events --sort-by=.lastTimestamp | tail -n 20
           echo "---------------------------------------------------------------"
 
       - name: Skipped (missing secrets)

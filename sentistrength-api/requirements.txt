@@ -1,4 +1,0 @@
-flask
-sentistrength
-nltk
-pandas

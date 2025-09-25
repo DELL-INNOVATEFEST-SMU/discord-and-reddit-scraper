@@ -63,9 +63,11 @@ EMOJI_PATTERN = re.compile(
     "]+",
     flags=re.UNICODE,
 )
-
+INVISIBLE_PATTERN = re.compile(r'[\u200B\u200C\u200D\uFEFF\u00A0]')
 def remove_emojis(text: str) -> str:
-    return EMOJI_PATTERN.sub("", text)
+    text = EMOJI_PATTERN.sub("", text)       # Remove emojis
+    text = INVISIBLE_PATTERN.sub("", text)   # Remove zero-width/invisible chars
+    return text.strip()
 
 # Initialize clients asynchronously
 genai_client = genai.Client(api_key=GOOGLE_API_KEY)
@@ -170,6 +172,8 @@ async def main(subreddits: dict[str, int]):
         try:
             subreddit = await reddit.subreddit(subreddit_name)
             async for post in subreddit.new(limit=limit):
+                if post.selftext =="" and post.url!="":
+                    continue
                 posts.append({
                     "title": post.title,
                     "body": remove_emojis(post.selftext) or "",
